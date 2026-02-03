@@ -4,18 +4,19 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	_ "embed"
-	"errors"
+	"embed"
 	"fmt"
 	"io"
+	"io/fs"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 )
 
-//go:embed darwin-arch64.tar.gz
-var python_darwin []byte
+//go:embed universal-bucket/*
+var universal_bucket embed.FS
 
 type pythonInstance struct {
 	ExtractionPath  string
@@ -36,13 +37,18 @@ func CreatePythonInstance() (*pythonInstance, error) {
 
 	fmt.Println("Go current runnon on operating system: ", osName)
 	fmt.Println("Go current architecture: ", arch)
-	var python_package *[]byte
-	if osName == "darwin" && arch == "arm64" {
-		python_package = &python_darwin
-		fmt.Println("darwin arm64 python package selected")
-	} else {
-		panic(errors.New("unsupported operating system or architecture"))
+	fmt.Println("Selecting appropriate embedded python package...")
+	fmt.Println("universal-bucket/" + osName + "-" + arch + ".tar.gz")
+	python_package, err := fs.ReadFile(universal_bucket, "universal-bucket/"+osName+"-"+arch+".tar.gz")
+	if err != nil {
+		log.Fatal(err)
 	}
+	// if osName == "darwin" && arch == "arm64" {
+	// 	python_package = &python_package
+	// 	fmt.Println("darwin arm64 python package selected")
+	// } else {
+	// 	panic(errors.New("unsupported operating system or architecture"))
+	// }
 	// unpack python
 	dname, err := os.MkdirTemp("./", "python-tmp")
 	if err != nil {
@@ -51,7 +57,8 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	fmt.Println("Temp dir name: ", dname)
 
 	var python_bin_path string
-	err = extractTarGz(*python_package, dname)
+	// old way to unpack
+	err = extractTarGz(python_package, dname)
 	if err != nil {
 		panic(err)
 	}
