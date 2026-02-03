@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	gorunpython "github.com/ZacTyAdams/go-run-python/m/v2"
+	gorunpython "github.com/ZacTyAdams/go-run-python/v2"
 )
 
 func main() {
