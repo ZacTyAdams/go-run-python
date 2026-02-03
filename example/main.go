@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	gorunpython "github.com/ZacTyAdams/go-run-python/v2"
@@ -16,6 +17,16 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	err = pythonInstance.ListExecutables()
+	if err != nil {
+		panic(err)
+	}
+
+	pythonExecutable := pythonInstance.Executables["python3.10"]
+
+	fmt.Println("Python executable path: ", pythonExecutable.ExecutablePath)
+	pythonExecutable.Exec([]string{"--version"})
 
 	err = pythonInstance.PythonExec("hello_world.py")
 	if err != nil {

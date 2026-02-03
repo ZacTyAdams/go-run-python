@@ -18,9 +18,16 @@ import (
 var python_darwin []byte
 
 type pythonInstance struct {
-	ExtractionPath string
-	Pip            string
-	Python         string
+	ExtractionPath  string
+	Pip             string
+	Python          string
+	ExecutablesPath string
+	Executables     map[string]pythonExecutable
+}
+
+type pythonExecutable struct {
+	ExecutableName string
+	ExecutablePath string
 }
 
 func CreatePythonInstance() (*pythonInstance, error) {
@@ -59,9 +66,11 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	}
 
 	python_instance := &pythonInstance{
-		ExtractionPath: dname,
-		Pip:            python_bin_path + "/pip3.10",
-		Python:         python_bin_path + "/python3.10",
+		ExtractionPath:  dname,
+		Pip:             python_bin_path + "/pip3.10",
+		Python:          python_bin_path + "/python3.10",
+		ExecutablesPath: python_bin_path,
+		Executables:     make(map[string]pythonExecutable),
 	}
 	return python_instance, nil
 }
@@ -86,6 +95,34 @@ func (p *pythonInstance) PipInstall(packageName string) error {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println("Failed to execute pip install command: ")
+	}
+	fmt.Println(string(output))
+	fmt.Println("Rescanning executables after pip install...")
+	err = p.ListExecutables()
+	return err
+}
+
+func (p *pythonInstance) ListExecutables() error {
+	files, err := os.ReadDir(p.ExecutablesPath)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, file := range files {
+		execPath := filepath.Join(p.ExecutablesPath, file.Name())
+
+		p.Executables[file.Name()] = pythonExecutable{ExecutableName: file.Name(), ExecutablePath: execPath}
+		fmt.Println("Found executable: ", file.Name())
+	}
+
+	return err
+}
+
+func (e *pythonExecutable) Exec(args []string) error {
+	cmd := exec.Command(e.ExecutablePath, args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println("Failed to execute python executable command: ")
 	}
 	fmt.Println(string(output))
 	return err
