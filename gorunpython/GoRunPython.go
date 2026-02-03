@@ -1,4 +1,4 @@
-package main
+package gorunpython
 
 import (
 	"archive/tar"
@@ -18,12 +18,12 @@ import (
 var python_darwin []byte
 
 type pythonInstance struct {
-	extractionPath string
-	pip            string
-	python         string
+	ExtractionPath string
+	Pip            string
+	Python         string
 }
 
-func createPythonInstance() (*pythonInstance, error) {
+func CreatePythonInstance() (*pythonInstance, error) {
 	osName := runtime.GOOS
 	arch := runtime.GOARCH
 
@@ -59,15 +59,15 @@ func createPythonInstance() (*pythonInstance, error) {
 	}
 
 	python_instance := &pythonInstance{
-		extractionPath: dname,
-		pip:            python_bin_path + "/pip3.10",
-		python:         python_bin_path + "/python3.10",
+		ExtractionPath: dname,
+		Pip:            python_bin_path + "/pip3.10",
+		Python:         python_bin_path + "/python3.10",
 	}
 	return python_instance, nil
 }
 
 func (p *pythonInstance) PythonExec(command string) error {
-	cmd := exec.Command(p.python, command)
+	cmd := exec.Command(p.Python, command)
 	workingDir, err := os.Getwd()
 	if err != nil {
 		fmt.Println("Issue getting the current working directory")
@@ -82,7 +82,7 @@ func (p *pythonInstance) PythonExec(command string) error {
 	return err
 }
 func (p *pythonInstance) PipInstall(packageName string) error {
-	cmd := exec.Command(p.pip, "install", packageName)
+	cmd := exec.Command(p.Pip, "install", packageName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println("Failed to execute pip install command: ")
@@ -183,16 +183,16 @@ func makeAllFilesExecutable(directoryPath string) error {
 	return nil
 }
 
-func main() {
-	pythonInstance, err := createPythonInstance()
-	if err != nil {
-		panic(err)
-	}
-	defer os.RemoveAll(pythonInstance.extractionPath)
-	err = pythonInstance.PipInstall("requests")
-	if err != nil {
-		panic(err)
-	}
+// func main() {
+// 	pythonInstance, err := createPythonInstance()
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	defer os.RemoveAll(pythonInstance.extractionPath)
+// 	err = pythonInstance.PipInstall("requests")
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-	err = pythonInstance.PythonExec("hello_world.py")
-}
+// 	err = pythonInstance.PythonExec("hello_world.py")
+// }
