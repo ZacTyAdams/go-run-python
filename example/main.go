@@ -28,7 +28,7 @@ func main() {
 	fmt.Println("Python executable path: ", pythonExecutable.ExecutablePath)
 	pythonExecutable.Exec([]string{"--version"})
 
-	err = pythonInstance.PythonExec("hello_world.py")
+	err = pythonInstance.PythonExecStream("hello_world.py")
 	if err != nil {
 		panic(err)
 	}

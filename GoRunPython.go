@@ -18,6 +18,8 @@ import (
 //go:embed universal-bucket/*
 var universal_bucket embed.FS
 
+var noisy = os.Getenv("GORUNPYTHON_NOISY")
+
 type pythonInstance struct {
 	ExtractionPath  string
 	Pip             string
@@ -31,6 +33,7 @@ type pythonExecutable struct {
 	ExecutablePath string
 }
 
+// CreatePythonInstance unpacks the appropriate embedded python package for the current OS and architecture
 func CreatePythonInstance() (*pythonInstance, error) {
 	osName := runtime.GOOS
 	arch := runtime.GOARCH
@@ -71,7 +74,6 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	if err != nil {
 		panic(err)
 	}
-
 	python_instance := &pythonInstance{
 		ExtractionPath:  dname,
 		Pip:             python_bin_path + "/pip3.10",
@@ -82,33 +84,36 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	return python_instance, nil
 }
 
+// PythonExec runs a python command using the embedded python instance
 func (p *pythonInstance) PythonExec(command string) error {
-	cmd := exec.Command(p.Python, command)
-	workingDir, err := os.Getwd()
-	if err != nil {
-		fmt.Println("Issue getting the current working directory")
-		panic(err)
-	}
-	cmd.Dir = workingDir
-	output, err := cmd.CombinedOutput()
+	err := executeCommand(p.Python, []string{command})
 	if err != nil {
 		fmt.Println("Failed to execute python command: ")
 	}
-	fmt.Println(string(output))
 	return err
 }
+
+// PythonExecStream runs a python command using the embedded python instance and streams output
+func (p *pythonInstance) PythonExecStream(command string) error {
+	err := executeCommandStream(p.Python, []string{command})
+	if err != nil {
+		fmt.Println("Failed to execute python command: ")
+	}
+	return err
+}
+
+// PipInstall installs a python package using pip in the embedded python instance
 func (p *pythonInstance) PipInstall(packageName string) error {
-	cmd := exec.Command(p.Pip, "install", packageName)
-	output, err := cmd.CombinedOutput()
+	err := executeCommandStream(p.Pip, []string{"install", packageName})
 	if err != nil {
 		fmt.Println("Failed to execute pip install command: ")
 	}
-	fmt.Println(string(output))
 	fmt.Println("Rescanning executables after pip install...")
 	err = p.ListExecutables()
 	return err
 }
 
+// ListExecutables lists all executables in the embedded python instance's bin directory and stores them in the pythonInstance.Executables map
 func (p *pythonInstance) ListExecutables() error {
 	files, err := os.ReadDir(p.ExecutablesPath)
 	if err != nil {
@@ -119,19 +124,60 @@ func (p *pythonInstance) ListExecutables() error {
 		execPath := filepath.Join(p.ExecutablesPath, file.Name())
 
 		p.Executables[file.Name()] = pythonExecutable{ExecutableName: file.Name(), ExecutablePath: execPath}
-		fmt.Println("Found executable: ", file.Name())
+		if noisy != "" {
+			fmt.Println("Found executable: ", file.Name())
+		}
 	}
 
 	return err
 }
 
+// Exec runs a command using the specified pythonExecutable.ExecutablePath
 func (e *pythonExecutable) Exec(args []string) error {
-	cmd := exec.Command(e.ExecutablePath, args...)
-	output, err := cmd.CombinedOutput()
+	err := executeCommand(e.ExecutablePath, args)
 	if err != nil {
 		fmt.Println("Failed to execute python executable command: ")
 	}
-	fmt.Println(string(output))
+	return err
+}
+
+// ExecStream runs a command using the specified pythonExecutable.ExecutablePath and streams output
+func (e *pythonExecutable) ExecStream(args []string) error {
+	// We assume noisy is always true for streaming
+	err := executeCommandStream(e.ExecutablePath, args)
+	if err != nil {
+		fmt.Println("Failed to execute python executable command:")
+	}
+	return err
+}
+
+// executeCommand is an internal helper function to execute a command and return its output
+func executeCommand(command string, args []string) error {
+	cmd := exec.Command(command, args...)
+	WorkingDir, err := os.Getwd()
+	cmd.Dir = WorkingDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		fmt.Println("Failed to execute command: ", command)
+	}
+	if noisy != "" {
+		fmt.Println(string(output))
+	}
+	return err
+}
+
+// executeCommandStream is an internal helper function to execute a command and stream its output
+func executeCommandStream(command string, args []string) error {
+	// We assume noisy is always true for streaming
+	cmd := exec.Command(command, args...)
+	WorkingDir, err := os.Getwd()
+	cmd.Dir = WorkingDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err = cmd.Run()
+	if err != nil {
+		fmt.Println("Failed to execute command: ", command)
+	}
 	return err
 }
 
@@ -185,6 +231,7 @@ func extractTarGz(data []byte, dest string) error {
 	return nil
 }
 
+// makeAllFilesExecutable makes all files in the specified directory executable
 func makeAllFilesExecutable(directoryPath string) error {
 	// Specify the root directory to start walking from (e.g., "." for the current directory)
 
@@ -216,8 +263,9 @@ func makeAllFilesExecutable(directoryPath string) error {
 			fmt.Println("Error changing mode for %s: %v\n", path, err)
 			return nil // Continue walking even if one file fails
 		}
-
-		// fmt.Println("Made file executable: %s\n", path)
+		if noisy != "" {
+			fmt.Println("Made file executable: %s\n", path)
+		}
 		return nil
 	})
 
@@ -226,17 +274,3 @@ func makeAllFilesExecutable(directoryPath string) error {
 	}
 	return nil
 }
-
-// func main() {
-// 	pythonInstance, err := createPythonInstance()
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	defer os.RemoveAll(pythonInstance.extractionPath)
-// 	err = pythonInstance.PipInstall("requests")
-// 	if err != nil {
-// 		panic(err)
-// 	}
-
-// 	err = pythonInstance.PythonExec("hello_world.py")
-// }
