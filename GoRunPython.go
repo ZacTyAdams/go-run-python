@@ -4,19 +4,13 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
-	"embed"
 	"fmt"
 	"io"
-	"io/fs"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 )
-
-//go:embed universal-bucket/*
-var universal_bucket embed.FS
 
 var noisy = os.Getenv("GORUNPYTHON_NOISY")
 
@@ -41,17 +35,11 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	fmt.Println("Go current runnon on operating system: ", osName)
 	fmt.Println("Go current architecture: ", arch)
 	fmt.Println("Selecting appropriate embedded python package...")
-	fmt.Println("universal-bucket/" + osName + "-" + arch + ".tar.gz")
-	python_package, err := fs.ReadFile(universal_bucket, "universal-bucket/"+osName+"-"+arch+".tar.gz")
-	if err != nil {
-		log.Fatal(err)
+	// select embedded python package for this build (set via build-tag specific file)
+	if len(embeddedPython) == 0 {
+		return nil, fmt.Errorf("no embedded python package for %s-%s; add an embed file with matching //go:build or build for a supported target", osName, arch)
 	}
-	// if osName == "darwin" && arch == "arm64" {
-	// 	python_package = &python_package
-	// 	fmt.Println("darwin arm64 python package selected")
-	// } else {
-	// 	panic(errors.New("unsupported operating system or architecture"))
-	// }
+	python_package := embeddedPython
 	// unpack python
 	dname, err := os.MkdirTemp("./", "python-tmp")
 	if err != nil {
@@ -260,17 +248,17 @@ func makeAllFilesExecutable(directoryPath string) error {
 		// Change the file permissions
 		err = os.Chmod(path, newMode)
 		if err != nil {
-			fmt.Println("Error changing mode for %s: %v\n", path, err)
+			fmt.Printf("Error changing mode for %s: %v\n", path, err)
 			return nil // Continue walking even if one file fails
 		}
 		if noisy != "" {
-			fmt.Println("Made file executable: %s\n", path)
+			fmt.Printf("Made file executable: %s\n", path)
 		}
 		return nil
 	})
 
 	if err != nil {
-		fmt.Println("Error walking the directory: %v\n", err)
+		fmt.Printf("Error walking the directory: %v\n", err)
 	}
 	return nil
 }
