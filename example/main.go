@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	gorunpython "github.com/ZacTyAdams/go-run-python/v2"
 )
@@ -12,7 +11,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer os.RemoveAll(pythonInstance.ExtractionPath)
+	// defer os.RemoveAll(pythonInstance.ExtractionPath)
 	err = pythonInstance.PipInstall("requests")
 	if err != nil {
 		panic(err)

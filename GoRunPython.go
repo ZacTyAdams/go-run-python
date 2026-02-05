@@ -13,6 +13,7 @@ import (
 )
 
 var noisy = os.Getenv("GORUNPYTHON_NOISY")
+var keepTemp = os.Getenv("GORUNPYTHON_KEEP_TEMP")
 
 type pythonInstance struct {
 	ExtractionPath  string
