@@ -21,6 +21,7 @@ type pythonInstance struct {
 	Python          string
 	ExecutablesPath string
 	Executables     map[string]pythonExecutable
+	PythonVersion   string
 }
 
 type pythonExecutable struct {
@@ -73,7 +74,7 @@ func CreatePythonInstance() (*pythonInstance, error) {
 		}
 	}
 
-	err = makeAllFilesExecutable(python_bin_path)
+	err = makeAllFilesExecutable(python_bin_path, pythonVersion)
 	if err != nil {
 		panic(err)
 	}
@@ -83,6 +84,7 @@ func CreatePythonInstance() (*pythonInstance, error) {
 		Python:          python_bin_path + "/python" + pythonVersion,
 		ExecutablesPath: python_bin_path,
 		Executables:     make(map[string]pythonExecutable),
+		PythonVersion:   pythonVersion,
 	}
 	return python_instance, nil
 }
@@ -235,7 +237,7 @@ func extractTarGz(data []byte, dest string) error {
 }
 
 // makeAllFilesExecutable makes all files in the specified directory executable
-func makeAllFilesExecutable(directoryPath string) error {
+func makeAllFilesExecutable(directoryPath string, pythonVersion string) error {
 	// Specify the root directory to start walking from (e.g., "." for the current directory)
 
 	// Walk through the directory tree
@@ -260,14 +262,24 @@ func makeAllFilesExecutable(directoryPath string) error {
 		// This adds execute permission for all users (+x)
 		newMode := info.Mode() | 0111 // 0111 is execute permission for user, group, and other
 
-		// Change the file permissions
-		err = os.Chmod(path, newMode)
+		// Correct the file's shebang and other instances referring to the original build path at #!/Users/zacadams/Development/cpython-android/build-macos/../out/prefix/bin/python3.15
+		// This is necessary because the embedded python may have hardcoded paths that don't match the temp directory structure
+		// We will replace any instance of the original build path with the new temp directory path
+		originalBuildPath := "/Users/zacadams/Development/cpython-android/build-macos/../out/prefix/bin/python" + pythonVersion
+		newPath := directoryPath + "/python" + pythonVersion
+		input, err := os.ReadFile(path)
 		if err != nil {
-			fmt.Printf("Error changing mode for %s: %v\n", path, err)
+			fmt.Printf("Error reading file for shebang correction %s: %v\n", path, err)
 			return nil // Continue walking even if one file fails
 		}
+		output := bytes.ReplaceAll(input, []byte(originalBuildPath), []byte(newPath))
+		err = os.WriteFile(path, output, newMode)
 		if noisy != "" {
-			fmt.Printf("Made file executable: %s\n", path)
+			fmt.Printf("Corrected pathes and permissions in file: %s\n", path)
+		}
+		if err != nil {
+			fmt.Printf("Error writing file for shebang correction %s: %v\n", path, err)
+			return nil // Continue walking even if one file fails
 		}
 		return nil
 	})

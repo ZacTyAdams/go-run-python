@@ -1,15 +1,18 @@
 package main
 
 import (
-	"fmt"
 	"maps"
 	"os"
-	"strings"
 
 	gorunpython "github.com/ZacTyAdams/go-run-python/v2"
 )
 
 func main() {
+	// This will print extra log and output formation from the pyton scripts
+	// you can also use ExecStream to get the full live output from the python script without the extra go noise
+	// if you want silence just remove this line and environment variable
+	// os.Setenv("GORUNPYTHON_NOISY", "true")
+
 	pythonInstance, err := gorunpython.CreatePythonInstance()
 	if err != nil {
 		panic(err)
@@ -27,16 +30,16 @@ func main() {
 		panic(err)
 	}
 
-	var pythonExecutablePath string
+	var targetExecutable string
 	for entry := range maps.Keys(pythonInstance.Executables) {
-		if strings.HasPrefix(entry, "python") {
-			pythonExecutablePath = pythonInstance.Executables[entry].ExecutablePath
+		if entry == "python"+pythonInstance.PythonVersion {
+			targetExecutable = entry
 			break
 		}
 	}
 
-	fmt.Println("Python executable path: ", pythonExecutablePath)
-	// pythonExecutable.Exec([]string{"--version"})
+	pythonExecutable := pythonInstance.Executables[targetExecutable]
+	pythonExecutable.ExecStream([]string{"--version"})
 
 	err = pythonInstance.PythonExecStream("hello_world.py")
 	if err != nil {
