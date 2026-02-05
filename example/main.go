@@ -2,6 +2,9 @@ package main
 
 import (
 	"fmt"
+	"maps"
+	"os"
+	"strings"
 
 	gorunpython "github.com/ZacTyAdams/go-run-python/v2"
 )
@@ -11,7 +14,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	// defer os.RemoveAll(pythonInstance.ExtractionPath)
+	// by removing or commenting out this line you can inspect the extracted python files in the temp directory
+	defer os.RemoveAll(pythonInstance.ExtractionPath)
+
 	err = pythonInstance.PipInstall("requests")
 	if err != nil {
 		panic(err)
@@ -22,10 +27,16 @@ func main() {
 		panic(err)
 	}
 
-	pythonExecutable := pythonInstance.Executables["python3.10"]
+	var pythonExecutablePath string
+	for entry := range maps.Keys(pythonInstance.Executables) {
+		if strings.HasPrefix(entry, "python") {
+			pythonExecutablePath = pythonInstance.Executables[entry].ExecutablePath
+			break
+		}
+	}
 
-	fmt.Println("Python executable path: ", pythonExecutable.ExecutablePath)
-	pythonExecutable.Exec([]string{"--version"})
+	fmt.Println("Python executable path: ", pythonExecutablePath)
+	// pythonExecutable.Exec([]string{"--version"})
 
 	err = pythonInstance.PythonExecStream("hello_world.py")
 	if err != nil {
