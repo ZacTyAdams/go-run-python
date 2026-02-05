@@ -38,11 +38,6 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	fmt.Println("Go current architecture: ", arch)
 	fmt.Println("Selecting appropriate embedded python package...")
 
-	pythonVersion := "3.10"
-	if osName == "darwin" || osName == "android" && arch == "amd64" {
-		pythonVersion = "3.15"
-	}
-
 	// select embedded python package for this build (set via build-tag specific file)
 	if len(embeddedPython) == 0 {
 		return nil, fmt.Errorf("no embedded python package for %s-%s; add an embed file with matching //go:build or build for a supported target", osName, arch)
@@ -62,7 +57,7 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	}
 
 	var python_bin_path string
-	if pythonVersion == "3.15" {
+	if osName == "darwin" || osName == "android" {
 		python_bin_path, err = filepath.Abs(dname + "/prefix/bin")
 		if err != nil {
 			panic(err)
@@ -74,17 +69,17 @@ func CreatePythonInstance() (*pythonInstance, error) {
 		}
 	}
 
-	err = makeAllFilesExecutable(python_bin_path, pythonVersion)
+	err = makeAllFilesExecutable(python_bin_path, PythonVersion)
 	if err != nil {
 		panic(err)
 	}
 	python_instance := &pythonInstance{
 		ExtractionPath:  dname,
-		Pip:             python_bin_path + "/pip" + pythonVersion,
-		Python:          python_bin_path + "/python" + pythonVersion,
+		Pip:             python_bin_path + "/pip" + PythonVersion,
+		Python:          python_bin_path + "/python" + PythonVersion,
 		ExecutablesPath: python_bin_path,
 		Executables:     make(map[string]pythonExecutable),
-		PythonVersion:   pythonVersion,
+		PythonVersion:   PythonVersion,
 	}
 	return python_instance, nil
 }
