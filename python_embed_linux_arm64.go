@@ -1,4 +1,5 @@
-//go:build linux && arm64
+//go:build linux && arm64 && !android
+// +build linux,arm64,!android
 
 package gorunpython
 

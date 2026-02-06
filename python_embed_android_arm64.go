@@ -1,4 +1,5 @@
 //go:build android && arm64
+// +build android,arm64
 
 package gorunpython
 
