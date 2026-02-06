@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-
+cd cpython/Mac
 # You run this on a local mac machine
 # some pre-reqs:
 # xcode-select --install
@@ -49,7 +49,7 @@ cp -a out/prefix stage/
 # -------------------------
 cd stage
 PREFIX="$(pwd)/prefix"
-PYVER="3.15"
+PYVER="$1"
 
 # Strip main executables + dylibs + extension modules (best size win)
 find "$PREFIX" -type f \( -perm -111 -o -name "*.dylib" -o -name "*.so" \) -print0 \
@@ -72,4 +72,5 @@ find "$PREFIX" -name "*.a" -delete || true
 # Final tarball (max gzip compression)
 GZIP=-9 tar -czf darwin-arm64.tar.gz prefix
 
-echo "Built: $(pwd)/darwin-arm64.tar.gz"
+echo "Built: $(pwd)/darwin-arm64.tar.gz moving to universal bucket..."
+mv darwin-arm64.tar.gz ../../universal-bucket/darwin-arm64.tar.gz
