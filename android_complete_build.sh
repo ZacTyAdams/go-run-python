@@ -27,6 +27,9 @@ rm -rf "$PYROOT/lib/python3.15/test"
 rm -rf "$PYROOT/lib/python3.15/__pycache__"
 find "$PYROOT" -name '*.pyc' -delete
 
+# remove the ootb pip
+rm "$PYROOT/bin/pip*"
+
 # build the tarball
 cd /local-volume-bridge/cpython/stage
 tar -czf python-3.15-android-arm64-prefix.tar.gz prefix

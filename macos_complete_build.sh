@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <python_version>"
+    echo "Example: $0 3.15"
+    exit 1
+fi
+
 set -euo pipefail
 cd cpython/Mac
 # You run this on a local mac machine
@@ -65,6 +72,10 @@ find "$PREFIX" -name "*.pyo" -delete || true
 
 # Remove static libraries
 find "$PREFIX" -name "*.a" -delete || true
+
+# remove ootb pip in the bin folder because it's problematic
+echo "Removing pip from bin to avoid issues with shebangs and hardcoded paths"
+rm -rf prefix/bin/pip*
 
 # (Optional) Remove headers if you never compile extensions on the target
 # rm -rf "$PREFIX/include"

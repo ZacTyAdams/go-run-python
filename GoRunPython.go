@@ -58,12 +58,12 @@ func CreatePythonInstance() (*pythonInstance, error) {
 
 	var python_bin_path string
 	if osName == "darwin" || osName == "android" {
-		python_bin_path, err = filepath.Abs(dname + "/prefix/bin")
+		python_bin_path, err = filepath.Abs(filepath.Join(dname, "/prefix/bin"))
 		if err != nil {
 			panic(err)
 		}
 	} else {
-		python_bin_path, err = filepath.Abs(dname + "/python/bin")
+		python_bin_path, err = filepath.Abs(filepath.Join(dname, "/python/bin"))
 		if err != nil {
 			panic(err)
 		}
@@ -75,8 +75,8 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	}
 	python_instance := &pythonInstance{
 		ExtractionPath:  dname,
-		Pip:             python_bin_path + "/pip" + PythonVersion,
-		Python:          python_bin_path + "/python" + PythonVersion,
+		Pip:             filepath.Join(python_bin_path, "/python"+PythonVersion) + " -m pip",
+		Python:          filepath.Join(python_bin_path, "/python"+PythonVersion),
 		ExecutablesPath: python_bin_path,
 		Executables:     make(map[string]pythonExecutable),
 		PythonVersion:   PythonVersion,
@@ -104,7 +104,7 @@ func (p *pythonInstance) PythonExecStream(command string) error {
 
 // PipInstall installs a python package using pip in the embedded python instance
 func (p *pythonInstance) PipInstall(packageName string) error {
-	err := executeCommandStream(p.Pip, []string{"install", packageName})
+	err := executeCommandStream(p.Python, []string{"-m", "pip", "install", packageName})
 	if err != nil {
 		fmt.Println("Failed to execute pip install command: ")
 	}
@@ -261,7 +261,7 @@ func makeAllFilesExecutable(directoryPath string, pythonVersion string) error {
 		// This is necessary because the embedded python may have hardcoded paths that don't match the temp directory structure
 		// We will replace any instance of the original build path with the new temp directory path
 		originalBuildPath := "/Users/zacadams/Development/cpython-android/build-macos/../out/prefix/bin/python" + pythonVersion
-		newPath := directoryPath + "/python" + pythonVersion
+		newPath := filepath.Join(directoryPath, "/python"+pythonVersion)
 		input, err := os.ReadFile(path)
 		if err != nil {
 			fmt.Printf("Error reading file for shebang correction %s: %v\n", path, err)

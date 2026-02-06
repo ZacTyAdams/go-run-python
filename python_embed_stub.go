@@ -5,4 +5,4 @@ package gorunpython
 // Fallback stub: when no platform-specific embed file is present this
 // variable will be empty and the runtime will error with a helpful message.
 var embeddedPython []byte
-var PythonVersion = "3.10"
+var PythonVersion = "unknown"
