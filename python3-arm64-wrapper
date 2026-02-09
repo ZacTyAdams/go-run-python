@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+ROOT="$(cd "$HERE/.." && pwd)"
+
+LIBDIR="$ROOT/lib"
+LOADER="$LIBDIR/ld-linux-aarch64.so.1"
+PYBIN="$HERE/python3.14"
+
+# Do NOT export LD_LIBRARY_PATH; it can break /bin/sh in musl images.
+# Instead set it only for the exec'd process (belt-and-suspenders),
+# and rely primarily on ld-linux --library-path.
+
+exec env \
+  PYTHONHOME="$ROOT" \
+  PATH="$HERE:$PATH" \
+  LD_LIBRARY_PATH="$LIBDIR" \
+  "$LOADER" --library-path "$LIBDIR" "$PYBIN" "$@"

@@ -80,8 +80,8 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	}
 	python_instance := &pythonInstance{
 		ExtractionPath:  dname,
-		Pip:             filepath.Join(python_bin_path, "/python"+PythonVersion) + " -m pip",
-		Python:          filepath.Join(python_bin_path, "/python"+PythonVersion),
+		Pip:             filepath.Join(python_bin_path, "/python3") + " -m pip",
+		Python:          filepath.Join(python_bin_path, "/python3"),
 		ExecutablesPath: python_bin_path,
 		Executables:     make(map[string]pythonExecutable),
 		PythonVersion:   PythonVersion,

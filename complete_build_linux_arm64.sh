@@ -139,6 +139,8 @@ echo "adding dependency libraries to lib"
 cp /lib/aarch64-linux-gnu/libc.so.6 python/lib/
 cp /lib/aarch64-linux-gnu/libm.so.6 python/lib/
 cp /lib/ld-linux-aarch64.so.1 python/lib/
+rm python/bin/python3
+cp $REPO_ROOT/python3-arm64-wrapper python/bin/python3
 
 
 # Create tarball
