@@ -7,4 +7,4 @@ import _ "embed"
 
 //go:embed universal-bucket/linux-arm64.tar.gz
 var embeddedPython []byte
-var PythonVersion = "3.15"
+var PythonVersion = "3.14"
