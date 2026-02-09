@@ -38,6 +38,12 @@ RUN chmod +x ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/*
 ARG ANDROID_NDK_VERSION=27.3.13750724
 RUN yes | ${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager --sdk_root=${ANDROID_SDK_ROOT} "platform-tools" "platforms;android-24" "ndk;${ANDROID_NDK_VERSION}"
 
+# Install golang
+COPY go1.25.6.linux-amd64.tar.gz /go1.25.6.linux-amd64.tar.gz
+RUN tar -C /usr/local -xzf /go1.25.6.linux-amd64.tar.gz
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+
 # Create a non-root developer user and set workspace
 ARG UNAME=dev
 ARG UID=1000

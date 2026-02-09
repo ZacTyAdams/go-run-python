@@ -6,4 +6,4 @@ import _ "embed"
 
 //go:embed universal-bucket/linux-x86_64.tar.gz
 var embeddedPython []byte
-var PythonVersion = "3.10"
+var PythonVersion = "3.14"
