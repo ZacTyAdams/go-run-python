@@ -69,6 +69,7 @@ cd "$BUILD_DIR"
 
 # Configure with system libraries for portability
 echo "Configuring CPython..."
+LDFLAGS="-Wl,-rpath,\$ORIGIN/../lib" \
 "$CPYTHON_SRC/configure" \
   --prefix="$WORK_DIR/install" \
   --with-openssl=/usr \

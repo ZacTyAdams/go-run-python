@@ -69,6 +69,11 @@ func CreatePythonInstance() (*pythonInstance, error) {
 		}
 	}
 
+	// Ensure the embedded libpython is discoverable at runtime (Linux/Wolfi containers)
+	if osName == "linux" {
+		ensureEmbeddedPythonLibPath(python_bin_path)
+	}
+
 	err = makeAllFilesExecutable(python_bin_path, PythonVersion)
 	if err != nil {
 		panic(err)
@@ -283,4 +288,27 @@ func makeAllFilesExecutable(directoryPath string, pythonVersion string) error {
 		fmt.Printf("Error walking the directory: %v\n", err)
 	}
 	return nil
+}
+
+// ensureEmbeddedPythonLibPath sets LD_LIBRARY_PATH to include the embedded python lib directory.
+func ensureEmbeddedPythonLibPath(pythonBinPath string) {
+	libPath := filepath.Clean(filepath.Join(pythonBinPath, "..", "lib"))
+	current := os.Getenv("LD_LIBRARY_PATH")
+	if current == "" {
+		_ = os.Setenv("LD_LIBRARY_PATH", libPath)
+		return
+	}
+	// Avoid duplicating the path if already present
+	if !containsPath(current, libPath) {
+		_ = os.Setenv("LD_LIBRARY_PATH", libPath+":"+current)
+	}
+}
+
+func containsPath(list string, path string) bool {
+	for _, part := range filepath.SplitList(list) {
+		if part == path {
+			return true
+		}
+	}
+	return false
 }
