@@ -1,0 +1,2 @@
+export LD_LIBRARY_PATH=/local-volume-bridge/universal-bucket/python/lib:$LD_LIBRARY_PATH
+/local-volume-bridge/universal-bucket/python/lib/ld-linux-aarch64.so.1 /local-volume-bridge/universal-bucket/python/bin/python3.14

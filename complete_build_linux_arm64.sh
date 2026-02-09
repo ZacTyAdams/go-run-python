@@ -37,6 +37,7 @@ if [ "${INSTALL_DEPS:-0}" = "1" ] && command -v apt-get &> /dev/null; then
       libncursesw5-dev \
       libsqlite3-dev \
       zlib1g-dev \
+      patchelf \
       wget \
       ca-certificates
 
@@ -48,7 +49,7 @@ if [ "${INSTALL_DEPS:-0}" = "1" ] && command -v apt-get &> /dev/null; then
 else
   echo "Assuming build dependencies are pre-installed in container."
   echo "Required: build-essential libssl-dev libreadline-dev libxz-dev libbz2-dev"
-  echo "          libffi-dev libncursesw5-dev libsqlite3-dev zlib1g-dev wget ca-certificates"
+  echo "          libffi-dev libncursesw5-dev libsqlite3-dev zlib1g-dev patchelf wget ca-certificates"
 fi
 
 # Create work directory
@@ -69,7 +70,7 @@ cd "$BUILD_DIR"
 
 # Configure with system libraries for portability
 echo "Configuring CPython..."
-LDFLAGS="-Wl,-rpath,\$ORIGIN/../lib" \
+LDFLAGS="-Wl,-rpath,\$ORIGIN/../lib -Wl,-rpath-link,\$ORIGIN/../lib" \
 "$CPYTHON_SRC/configure" \
   --prefix="$WORK_DIR/install" \
   --with-openssl=/usr \
@@ -85,6 +86,28 @@ LDFLAGS="-Wl,-rpath,\$ORIGIN/../lib" \
 echo "Building CPython (this may take a few minutes)..."
 make -j"$(nproc)" > /dev/null 2>&1
 make install > /dev/null 2>&1
+
+# # Ensure expected python symlinks exist in the bin directory
+# BIN_DIR="$WORK_DIR/install/bin"
+# if [ -d "$BIN_DIR" ]; then
+#   if [ -f "$BIN_DIR/python$PYTHON_MAJOR_MINOR" ]; then
+#     rm -rf "$BIN_DIR/python3" "$BIN_DIR/python" || true
+#     ln -s "python$PYTHON_MAJOR_MINOR" "$BIN_DIR/python3"
+#     ln -s "python$PYTHON_MAJOR_MINOR" "$BIN_DIR/python"
+#   fi
+# fi
+
+# Ensure libpython is co-located and rpath is set on python executables
+if command -v patchelf >/dev/null 2>&1 || command -v chrpath >/dev/null 2>&1; then
+  for bin in "$WORK_DIR/install/bin/python"*; do
+    [ -f "$bin" ] || continue
+    if command -v patchelf >/dev/null 2>&1; then
+      patchelf --set-rpath '$ORIGIN/../lib' "$bin" || true
+    else
+      chrpath -r '$ORIGIN/../lib' "$bin" || true
+    fi
+  done
+fi
 
 # Stage for packaging
 STAGE_DIR="$WORK_DIR/stage"
@@ -111,6 +134,12 @@ find python -type f -name "*.a" -delete 2>/dev/null || true
 
 # Remove pip executables (problematic shebangs)
 rm -f python/bin/pip*
+
+echo "adding dependency libraries to lib"
+cp /lib/aarch64-linux-gnu/libc.so.6 python/lib/
+cp /lib/aarch64-linux-gnu/libm.so.6 python/lib/
+cp /lib/ld-linux-aarch64.so.1 python/lib/
+
 
 # Create tarball
 echo "Creating tarball..."
