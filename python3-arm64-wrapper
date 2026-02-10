@@ -1,11 +1,34 @@
 #!/bin/sh
 set -eu
 
-HERE="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-ROOT="$(cd "$HERE/.." && pwd)"
+# Find the path we were invoked as
+self="$0"
+case "$self" in
+  */*) : ;;  # already has a slash
+  *)
+    # If invoked via PATH, try to resolve to a full path without external tools
+    found="$(command -v -- "$self" 2>/dev/null || true)"
+    [ -n "$found" ] && self="$found"
+    ;;
+esac
 
-LOADER="$ROOT/lib/ld-linux-aarch64.so.1"
+# Get directory portion without dirname(1)
+bindir="${self%/*}"
+[ "$bindir" = "$self" ] && bindir="."
+
+# Convert to absolute, resolving relative invocations
+oldpwd="$(pwd)"
+cd "$bindir" 2>/dev/null || {
+  echo "Failed to cd to wrapper directory: $bindir" >&2
+  exit 1
+}
+BINDIR="$(pwd -P)"
+cd "$oldpwd" >/dev/null 2>&1 || true
+
+ROOT="${BINDIR%/*}"
 LIBDIR="$ROOT/lib"
-REALPY="$HERE/python3.14"
+LOADER="$LIBDIR/ld-linux-aarch64.so.1"
+REALPY="$BINDIR/python3.14"
 
+# Run using our bundled loader and libs (don’t export LD_LIBRARY_PATH globally)
 exec "$LOADER" --library-path "$LIBDIR" "$REALPY" "$@"
