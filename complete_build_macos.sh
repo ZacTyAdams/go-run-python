@@ -80,6 +80,10 @@ rm -rf prefix/bin/pip*
 # (Optional) Remove headers if you never compile extensions on the target
 # rm -rf "$PREFIX/include"
 
+# echo "creating python3 wrapper"
+# rm prefix/bin/python3
+# cp $REPO_ROOT/python3-macos-wrapper prefix/bin/python3
+
 # Final tarball (max gzip compression)
 GZIP=-9 tar -czf darwin-arm64.tar.gz prefix
 
