@@ -70,7 +70,7 @@ cd "$BUILD_DIR"
 
 # Configure with system libraries for portability
 echo "Configuring CPython..."
-LDFLAGS="-Wl,-rpath,\$ORIGIN/../lib -Wl,-rpath-link,\$ORIGIN/../lib" \
+LDFLAGS="-Wl,-rpath,'\$ORIGIN/../lib' -Wl,-rpath-link,'\$ORIGIN/../lib' -Wl,--disable-new-dtags" \
 "$CPYTHON_SRC/configure" \
   --prefix="$WORK_DIR/install" \
   --with-openssl=/usr \
@@ -102,7 +102,7 @@ if command -v patchelf >/dev/null 2>&1 || command -v chrpath >/dev/null 2>&1; th
   for bin in "$WORK_DIR/install/bin/python"*; do
     [ -f "$bin" ] || continue
     if command -v patchelf >/dev/null 2>&1; then
-      patchelf --set-rpath '$ORIGIN/../lib' "$bin" || true
+      patchelf --force-rpath --set-rpath '$ORIGIN/../lib' "$bin" || true
     else
       chrpath -r '$ORIGIN/../lib' "$bin" || true
     fi
