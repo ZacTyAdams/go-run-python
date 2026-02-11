@@ -1,4 +1,6 @@
-FROM --platform=linux/amd64 python:3.14.3-bookworm
+# Testing the arm 64 build process
+# FROM --platform=linux/amd64 python:3.14.3-bookworm
+FROM --platform=linux/arm64 python:3.14.3-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_SDK_ROOT=/opt/android-sdk
@@ -12,7 +14,7 @@ ENV HOST=aarch64-linux-android
          ca-certificates curl wget unzip git build-essential clang pkg-config \
          libssl-dev libbz2-dev libreadline-dev libsqlite3-dev libncurses-dev \
          xz-utils liblzma-dev zlib1g-dev libffi-dev cmake ninja-build \
-         openjdk-17-jdk-headless sudo acl \
+         openjdk-17-jdk-headless sudo acl patchelf \
      && rm -rf /var/lib/apt/lists/*
 
 # Create SDK directories

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/busybox sh
 set -eu
 
 # Find the path we were invoked as
@@ -28,7 +28,11 @@ cd "$oldpwd" >/dev/null 2>&1 || true
 ROOT="${BINDIR%/*}"
 LIBDIR="$ROOT/lib"
 LOADER="$LIBDIR/ld-linux-aarch64.so.1"
-REALPY="$BINDIR/python3.14"
+REALPY="$BINDIR/python3.14.bin"
+if [ ! -x "$REALPY" ]; then
+  echo "Missing real python binary: $REALPY" >&2
+  exit 1
+fi
 
 # Run using our bundled loader and libs (don’t export LD_LIBRARY_PATH globally)
 exec "$LOADER" --library-path "$LIBDIR" "$REALPY" "$@"

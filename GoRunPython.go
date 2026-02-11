@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -43,12 +44,32 @@ func CreatePythonInstance() (*pythonInstance, error) {
 		return nil, fmt.Errorf("no embedded python package for %s-%s; add an embed file with matching //go:build or build for a supported target", osName, arch)
 	}
 	python_package := embeddedPython
+	var err error
 	// unpack python
-	dname, err := os.MkdirTemp("./", "python-tmp")
-	if err != nil {
-		panic(err)
+	var dname string
+	if osName == "linux" {
+		absRoot, err := filepath.Abs("/tmp/gorunpython")
+		if err != nil {
+			panic(err)
+		}
+		dname = absRoot
+		if keepTemp == "" {
+			_ = os.RemoveAll(dname)
+		}
+		if err := os.MkdirAll(dname, 0755); err != nil {
+			panic(err)
+		}
+	} else {
+		tmpDir, err := os.MkdirTemp("./", "python-tmp")
+		if err != nil {
+			panic(err)
+		}
+		dname, err = filepath.Abs(tmpDir)
+		if err != nil {
+			panic(err)
+		}
 	}
-	fmt.Println("Temp dir name: ", dname)
+	fmt.Println("Temp dir absolute path: ", dname)
 
 	// old way to unpack
 	err = extractTarGz(python_package, dname)
@@ -73,15 +94,22 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	if osName == "linux" {
 		ensureEmbeddedPythonLibPath(python_bin_path)
 	}
-
 	err = makeAllFilesExecutable(python_bin_path, PythonVersion)
 	if err != nil {
 		panic(err)
 	}
+
+	pythonExecPath, err := resolvePythonExecutable(python_bin_path, PythonVersion)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensurePipInstalled(pythonExecPath); err != nil {
+		return nil, err
+	}
 	python_instance := &pythonInstance{
 		ExtractionPath:  dname,
-		Pip:             filepath.Join(python_bin_path, "/python3") + " -m pip",
-		Python:          filepath.Join(python_bin_path, "/python3"),
+		Pip:             pythonExecPath + " -m pip",
+		Python:          pythonExecPath,
 		ExecutablesPath: python_bin_path,
 		Executables:     make(map[string]pythonExecutable),
 		PythonVersion:   PythonVersion,
@@ -91,16 +119,17 @@ func CreatePythonInstance() (*pythonInstance, error) {
 
 // PythonExec runs a python command using the embedded python instance
 func (p *pythonInstance) PythonExec(command string) error {
-	err := executeCommand(p.Python, []string{command})
+	err := runPythonCommand(p.Python, []string{command}, false)
 	if err != nil {
 		fmt.Println("Failed to execute python command: ")
+		fmt.Println(err)
 	}
 	return err
 }
 
 // PythonExecStream runs a python command using the embedded python instance and streams output
 func (p *pythonInstance) PythonExecStream(command string) error {
-	err := executeCommandStream(p.Python, []string{command})
+	err := runPythonCommand(p.Python, []string{command}, true)
 	if err != nil {
 		fmt.Println("Failed to execute python command: ")
 	}
@@ -109,9 +138,20 @@ func (p *pythonInstance) PythonExecStream(command string) error {
 
 // PipInstall installs a python package using pip in the embedded python instance
 func (p *pythonInstance) PipInstall(packageName string) error {
-	err := executeCommandStream(p.Python, []string{"-m", "pip", "install", packageName})
+	original_directory, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	defer os.Chdir(original_directory)
+	os.Chdir(p.ExecutablesPath)
+	err = runPythonCommand(p.Python, []string{"-m", "pip", "install", packageName}, true)
 	if err != nil {
 		fmt.Println("Failed to execute pip install command: ")
+		fmt.Println(err)
+		currentDirectory, _ := os.Getwd()
+		fmt.Println("Current directory: ", currentDirectory)
+		fmt.Println("Executables path: ", p.ExecutablesPath)
+		fmt.Println("Python executable: ", p.Python)
 	}
 	fmt.Println("Rescanning executables after pip install...")
 	err = p.ListExecutables()
@@ -158,10 +198,12 @@ func (e *pythonExecutable) ExecStream(args []string) error {
 
 // executeCommand is an internal helper function to execute a command and return its output
 func executeCommand(command string, args []string) error {
-	cmd := exec.Command(command, args...)
-	WorkingDir, err := os.Getwd()
-	cmd.Dir = WorkingDir
-	output, err := cmd.CombinedOutput()
+	output, err := runCommand(command, args, false)
+	if err != nil && shouldRetryWithLoader(command, err) {
+		if loader, ok := findBundledLoader(command); ok {
+			output, err = runCommand(loader, append([]string{command}, args...), false)
+		}
+	}
 	if err != nil {
 		fmt.Println("Failed to execute command: ", command)
 	}
@@ -173,13 +215,12 @@ func executeCommand(command string, args []string) error {
 
 // executeCommandStream is an internal helper function to execute a command and stream its output
 func executeCommandStream(command string, args []string) error {
-	// We assume noisy is always true for streaming
-	cmd := exec.Command(command, args...)
-	WorkingDir, err := os.Getwd()
-	cmd.Dir = WorkingDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Run()
+	err := runCommandStream(command, args)
+	if err != nil && shouldRetryWithLoader(command, err) {
+		if loader, ok := findBundledLoader(command); ok {
+			err = runCommandStream(loader, append([]string{command}, args...))
+		}
+	}
 	if err != nil {
 		fmt.Println("Failed to execute command: ", command)
 	}
@@ -311,4 +352,152 @@ func containsPath(list string, path string) bool {
 		}
 	}
 	return false
+}
+
+func resolvePythonExecutable(binPath string, pythonVersion string) (string, error) {
+	candidates := []string{
+		filepath.Join(binPath, "python"+pythonVersion),
+		filepath.Join(binPath, "python3"),
+		filepath.Join(binPath, "python"),
+	}
+	for _, candidate := range candidates {
+		info, err := os.Stat(candidate)
+		if err == nil && !info.IsDir() {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf("python executable not found in %s", binPath)
+}
+
+func findBundledLoader(command string) (string, bool) {
+	if runtime.GOOS != "linux" {
+		return "", false
+	}
+	binDir := filepath.Dir(command)
+	libDir := filepath.Clean(filepath.Join(binDir, "..", "lib"))
+	candidates := []string{
+		filepath.Join(libDir, "ld-linux-aarch64.so.1"),
+		filepath.Join(libDir, "ld-linux-x86-64.so.2"),
+	}
+	for _, candidate := range candidates {
+		info, err := os.Stat(candidate)
+		if err == nil && !info.IsDir() {
+			return candidate, true
+		}
+	}
+	return "", false
+}
+
+func shouldRetryWithLoader(command string, err error) bool {
+	if err == nil {
+		return false
+	}
+	if _, statErr := os.Stat(command); statErr != nil {
+		return false
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		return false
+	}
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		return true
+	}
+	return errors.Is(err, os.ErrNotExist)
+}
+
+func runCommand(command string, args []string, stream bool) ([]byte, error) {
+	cmd := exec.Command(command, args...)
+	workingDir, err := os.Getwd()
+	if err == nil {
+		cmd.Dir = workingDir
+	}
+	if stream {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return nil, cmd.Run()
+	}
+	return cmd.CombinedOutput()
+}
+
+func runCommandStream(command string, args []string) error {
+	_, err := runCommand(command, args, true)
+	return err
+}
+
+func ensurePipInstalled(pythonExecPath string) error {
+	if err := runPythonCommand(pythonExecPath, []string{"-m", "pip", "--version"}, false); err == nil {
+		return nil
+	}
+	if output, err := runPythonCommandWithOutput(pythonExecPath, []string{"-m", "ensurepip", "--upgrade"}); err != nil {
+		return fmt.Errorf("failed to bootstrap pip: %w\n%s", err, output)
+	}
+	if output, err := runPythonCommandWithOutput(pythonExecPath, []string{"-m", "pip", "--version"}); err != nil {
+		return fmt.Errorf("pip still unavailable after ensurepip: %w\n%s", err, output)
+	}
+	return nil
+}
+
+func runPythonCommand(pythonExecPath string, args []string, stream bool) error {
+	command := pythonExecPath
+	commandArgs := args
+	if useLoaderFor(pythonExecPath) {
+		if loader, ok := findBundledLoader(pythonExecPath); ok {
+			command = loader
+			commandArgs = append([]string{pythonExecPath}, args...)
+		}
+	}
+	if stream {
+		return runCommandStream(command, commandArgs)
+	}
+	output, err := runCommand(command, commandArgs, false)
+	if noisy != "" {
+		fmt.Println(string(output))
+	}
+	return err
+}
+
+func runPythonCommandWithOutput(pythonExecPath string, args []string) (string, error) {
+	command := pythonExecPath
+	commandArgs := args
+	if useLoaderFor(pythonExecPath) {
+		if loader, ok := findBundledLoader(pythonExecPath); ok {
+			command = loader
+			commandArgs = append([]string{pythonExecPath}, args...)
+		}
+	}
+	output, err := runCommand(command, commandArgs, false)
+	return string(output), err
+}
+
+func useLoaderFor(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	prefix, err := readFilePrefix(path, 4)
+	if err != nil {
+		return false
+	}
+	if len(prefix) >= 2 && prefix[0] == '#' && prefix[1] == '!' {
+		return false
+	}
+	if len(prefix) == 4 && prefix[0] == 0x7f && prefix[1] == 'E' && prefix[2] == 'L' && prefix[3] == 'F' {
+		return true
+	}
+	return false
+}
+
+func readFilePrefix(path string, n int) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	buf := make([]byte, n)
+	read, err := f.Read(buf)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return nil, err
+	}
+	return buf[:read], nil
 }

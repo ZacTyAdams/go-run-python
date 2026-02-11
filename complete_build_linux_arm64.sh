@@ -3,6 +3,7 @@
 set -euo pipefail
 
 PYTHON_VERSION="${1:-3.10}"
+FIXED_ROOT="/tmp/gorunpython"
 WORK_DIR="/tmp/python-build-$$"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -102,7 +103,10 @@ if command -v patchelf >/dev/null 2>&1 || command -v chrpath >/dev/null 2>&1; th
   for bin in "$WORK_DIR/install/bin/python"*; do
     [ -f "$bin" ] || continue
     if command -v patchelf >/dev/null 2>&1; then
-      patchelf --force-rpath --set-rpath '$ORIGIN/../lib' "$bin" || true
+      patchelf --force-rpath \
+               --set-rpath '$ORIGIN/../lib' \
+               --set-interpreter "$FIXED_ROOT/python/lib/ld-linux-aarch64.so.1" \
+               "$bin" || true
     else
       chrpath -r '$ORIGIN/../lib' "$bin" || true
     fi
@@ -139,8 +143,21 @@ echo "adding dependency libraries to lib"
 cp /lib/aarch64-linux-gnu/libc.so.6 python/lib/
 cp /lib/aarch64-linux-gnu/libm.so.6 python/lib/
 cp /lib/ld-linux-aarch64.so.1 python/lib/
-rm python/bin/python3
-cp $REPO_ROOT/python3-arm64-wrapper python/bin/python3
+cp /lib/aarch64-linux-gnu/libz.so.1 python/lib/
+for lib in \
+  /lib/aarch64-linux-gnu/libbz2.so.1.0 \
+  /lib/aarch64-linux-gnu/liblzma.so.5 \
+  /lib/aarch64-linux-gnu/libffi.so.8 \
+  /lib/aarch64-linux-gnu/libreadline.so.8 \
+  /lib/aarch64-linux-gnu/libncursesw.so.6 \
+  /lib/aarch64-linux-gnu/libtinfo.so.6 \
+  /lib/aarch64-linux-gnu/libsqlite3.so.0 \
+  /lib/aarch64-linux-gnu/libssl.so.3 \
+  /lib/aarch64-linux-gnu/libcrypto.so.3; do
+  if [ -f "$lib" ]; then
+    cp "$lib" python/lib/
+  fi
+done
 
 
 # Create tarball
