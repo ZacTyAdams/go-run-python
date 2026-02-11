@@ -142,6 +142,8 @@ rm -f python/bin/pip*
 echo "adding dependency libraries to lib"
 cp /lib/aarch64-linux-gnu/libc.so.6 python/lib/
 cp /lib/aarch64-linux-gnu/libm.so.6 python/lib/
+cp /lib/aarch64-linux-gnu/libpthread.so.0 python/lib/
+cp /lib/aarch64-linux-gnu/libdl.so.2 python/lib/
 cp /lib/ld-linux-aarch64.so.1 python/lib/
 cp /lib/aarch64-linux-gnu/libz.so.1 python/lib/
 for lib in \
@@ -158,6 +160,34 @@ for lib in \
     cp "$lib" python/lib/
   fi
 done
+
+resolve_libgcc() {
+  local cc="${CC:-gcc}"
+  if command -v "$cc" >/dev/null 2>&1; then
+    local lib
+    lib="$($cc -print-file-name=libgcc_s.so.1)"
+    if [ -n "$lib" ] && [ "$lib" != "libgcc_s.so.1" ] && [ -f "$lib" ]; then
+      echo "$lib"
+      return 0
+    fi
+  fi
+  for cand in \
+    /lib/aarch64-linux-gnu/libgcc_s.so.1 \
+    /lib64/libgcc_s.so.1 \
+    /usr/lib/*/libgcc_s.so.1; do
+    if [ -f "$cand" ]; then
+      echo "$cand"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if libgcc_path="$(resolve_libgcc)"; then
+  cp "$libgcc_path" python/lib/
+else
+  echo "Warning: libgcc_s.so.1 not found; embedded runtime may be less portable."
+fi
 
 
 # Create tarball

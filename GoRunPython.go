@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
 
 var noisy = os.Getenv("GORUNPYTHON_NOISY")
@@ -143,8 +144,16 @@ func (p *pythonInstance) PipInstall(packageName string) error {
 		panic(err)
 	}
 	defer os.Chdir(original_directory)
-	os.Chdir(p.ExecutablesPath)
-	err = runPythonCommand(p.Python, []string{"-m", "pip", "install", packageName}, true)
+	packageArg, err := resolvePipPackageArg(packageName, original_directory)
+	if err != nil {
+		fmt.Println("Failed to resolve pip install package path: ")
+		fmt.Println(err)
+		return err
+	}
+	if err := os.Chdir(p.ExecutablesPath); err != nil {
+		return err
+	}
+	err = runPythonCommand(p.Python, []string{"-m", "pip", "install", packageArg}, true)
 	if err != nil {
 		fmt.Println("Failed to execute pip install command: ")
 		fmt.Println(err)
@@ -152,10 +161,10 @@ func (p *pythonInstance) PipInstall(packageName string) error {
 		fmt.Println("Current directory: ", currentDirectory)
 		fmt.Println("Executables path: ", p.ExecutablesPath)
 		fmt.Println("Python executable: ", p.Python)
+		return err
 	}
 	fmt.Println("Rescanning executables after pip install...")
-	err = p.ListExecutables()
-	return err
+	return p.ListExecutables()
 }
 
 // ListExecutables lists all executables in the embedded python instance's bin directory and stores them in the pythonInstance.Executables map
@@ -500,4 +509,41 @@ func readFilePrefix(path string, n int) ([]byte, error) {
 		return nil, err
 	}
 	return buf[:read], nil
+}
+
+func resolvePipPackageArg(packageName string, originalDirectory string) (string, error) {
+	if !looksLikeLocalPath(packageName) {
+		return packageName, nil
+	}
+	if filepath.IsAbs(packageName) {
+		if _, err := os.Stat(packageName); err == nil {
+			return packageName, nil
+		}
+		return "", fmt.Errorf("package path not found: %s", packageName)
+	}
+	absoluteCandidate := filepath.Join(originalDirectory, packageName)
+	if _, err := os.Stat(absoluteCandidate); err == nil {
+		return absoluteCandidate, nil
+	}
+	if _, err := os.Stat(packageName); err == nil {
+		return packageName, nil
+	}
+	return "", fmt.Errorf("package path not found: %s (cwd: %s)", packageName, originalDirectory)
+}
+
+func looksLikeLocalPath(value string) bool {
+	if value == "" {
+		return false
+	}
+	if filepath.IsAbs(value) {
+		return true
+	}
+	if strings.Contains(value, string(os.PathSeparator)) {
+		return true
+	}
+	if strings.HasPrefix(value, ".") {
+		return true
+	}
+	lower := strings.ToLower(value)
+	return strings.HasSuffix(lower, ".whl") || strings.HasSuffix(lower, ".tar.gz") || strings.HasSuffix(lower, ".zip")
 }

@@ -111,6 +111,42 @@ find python -type f -name "*.a" -delete 2>/dev/null || true
 # Remove pip executables (problematic shebangs)
 rm -f python/bin/pip*
 
+if [ -f /lib/x86_64-linux-gnu/libpthread.so.0 ]; then
+  cp /lib/x86_64-linux-gnu/libpthread.so.0 python/lib/
+fi
+
+if [ -f /lib/x86_64-linux-gnu/libdl.so.2 ]; then
+  cp /lib/x86_64-linux-gnu/libdl.so.2 python/lib/
+fi
+
+resolve_libgcc() {
+  local cc="${CC:-gcc}"
+  if command -v "$cc" >/dev/null 2>&1; then
+    local lib
+    lib="$($cc -print-file-name=libgcc_s.so.1)"
+    if [ -n "$lib" ] && [ "$lib" != "libgcc_s.so.1" ] && [ -f "$lib" ]; then
+      echo "$lib"
+      return 0
+    fi
+  fi
+  for cand in \
+    /lib/x86_64-linux-gnu/libgcc_s.so.1 \
+    /lib64/libgcc_s.so.1 \
+    /usr/lib/*/libgcc_s.so.1; do
+    if [ -f "$cand" ]; then
+      echo "$cand"
+      return 0
+    fi
+  done
+  return 1
+}
+
+if libgcc_path="$(resolve_libgcc)"; then
+  cp "$libgcc_path" python/lib/
+else
+  echo "Warning: libgcc_s.so.1 not found; embedded runtime may be less portable."
+fi
+
 # Create tarball
 echo "Creating tarball..."
 mkdir -p "$REPO_ROOT/universal-bucket"
