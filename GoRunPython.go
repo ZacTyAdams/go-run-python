@@ -91,8 +91,8 @@ func CreatePythonInstance() (*pythonInstance, error) {
 		}
 	}
 
-	// Ensure the embedded libpython is discoverable at runtime (Linux/Wolfi containers)
-	if osName == "linux" {
+	// Ensure the embedded libpython is discoverable at runtime (Linux/Wolfi containers, Android)
+	if osName == "linux" || osName == "android" {
 		ensureEmbeddedPythonLibPath(python_bin_path)
 	}
 	err = makeAllFilesExecutable(python_bin_path, PythonVersion)
