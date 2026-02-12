@@ -13,6 +13,7 @@ func main() {
 	// you can also use ExecStream to get the full live output from the python script without the extra go noise
 	// if you want silence just remove this line and environment variable
 	os.Setenv("GORUNPYTHON_NOISY", "true")
+	os.Setenv("GORUNPYTHON_KEEP_TEMP", "true")
 
 	pythonInstance, err := gorunpython.CreatePythonInstance()
 	if err != nil {
@@ -20,7 +21,9 @@ func main() {
 	}
 	fmt.Println("Python version: ", pythonInstance.PythonVersion)
 	// by removing or commenting out this line you can inspect the extracted python files in the temp directory
-	defer os.RemoveAll(pythonInstance.ExtractionPath)
+	if os.Getenv("GORUNPYTHON_KEEP_TEMP") == "" {
+		defer os.RemoveAll(pythonInstance.ExtractionPath)
+	}
 
 	err = pythonInstance.PipInstall("requests")
 	if err != nil {

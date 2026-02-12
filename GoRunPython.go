@@ -40,6 +40,14 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	fmt.Println("Go current architecture: ", arch)
 	fmt.Println("Selecting appropriate embedded python package...")
 
+	if keepTemp != "" {
+		if reused, err := reuseKeptInstance(osName); err != nil {
+			return nil, err
+		} else if reused != nil {
+			return reused, nil
+		}
+	}
+
 	// select embedded python package for this build (set via build-tag specific file)
 	if len(embeddedPython) == 0 {
 		return nil, fmt.Errorf("no embedded python package for %s-%s; add an embed file with matching //go:build or build for a supported target", osName, arch)
@@ -49,11 +57,14 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	// unpack python
 	var dname string
 	if osName == "linux" {
-		absRoot, err := filepath.Abs("/tmp/gorunpython")
+		tmpDir, err := os.MkdirTemp("./", "python-tmp")
 		if err != nil {
 			panic(err)
 		}
-		dname = absRoot
+		dname, err = filepath.Abs(tmpDir)
+		if err != nil {
+			panic(err)
+		}
 		if keepTemp == "" {
 			_ = os.RemoveAll(dname)
 		}
@@ -107,6 +118,11 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	if err := ensurePipInstalled(pythonExecPath); err != nil {
 		return nil, err
 	}
+
+	if keepTemp != "" {
+		fmt.Println("Keeping temp directory with extracted python at: ", dname)
+		os.Create(filepath.Join(dname, ".keep"))
+	}
 	python_instance := &pythonInstance{
 		ExtractionPath:  dname,
 		Pip:             pythonExecPath + " -m pip",
@@ -116,6 +132,69 @@ func CreatePythonInstance() (*pythonInstance, error) {
 		PythonVersion:   PythonVersion,
 	}
 	return python_instance, nil
+}
+
+func reuseKeptInstance(osName string) (*pythonInstance, error) {
+	searchRoots := []string{"."}
+	if osName == "linux" {
+		searchRoots = append(searchRoots, "/tmp/gorunpython")
+	}
+
+	var reused *pythonInstance
+	stopErr := errors.New("found kept python")
+	for _, root := range searchRoots {
+		walkErr := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d == nil || d.IsDir() {
+				return nil
+			}
+			if d.Name() != ".keep" {
+				return nil
+			}
+			fmt.Println("Found .keep file at: ", path)
+			extractionPath := filepath.Dir(path)
+			absExtractionPath, err := filepath.Abs(extractionPath)
+			if err != nil {
+				fmt.Println("Failed to resolve absolute extraction path: ", err)
+				return nil
+			}
+			pythonBinPath := filepath.Join(absExtractionPath, "python", "bin")
+			if osName == "darwin" || osName == "android" {
+				pythonBinPath = filepath.Join(absExtractionPath, "prefix", "bin")
+			}
+			pythonExecPath, err := resolvePythonExecutable(pythonBinPath, PythonVersion)
+			if err != nil {
+				fmt.Println("Failed to resolve python executable in existing extracted instance: ", err)
+				return nil
+			}
+			if osName == "linux" || osName == "android" {
+				ensureEmbeddedPythonLibPath(pythonBinPath)
+			}
+			if err := ensurePipInstalled(pythonExecPath); err != nil {
+				fmt.Println("Failed to ensure pip is installed in existing extracted instance: ", err)
+				return nil
+			}
+			fmt.Println("Reusing existing extracted python instance at: ", extractionPath)
+			reused = &pythonInstance{
+				ExtractionPath:  absExtractionPath,
+				Pip:             pythonExecPath + " -m pip",
+				Python:          pythonExecPath,
+				ExecutablesPath: pythonBinPath,
+				Executables:     make(map[string]pythonExecutable),
+				PythonVersion:   PythonVersion,
+			}
+			return stopErr
+		})
+		if walkErr != nil && !errors.Is(walkErr, stopErr) {
+			return nil, walkErr
+		}
+		if reused != nil {
+			return reused, nil
+		}
+	}
+	return nil, nil
 }
 
 // PythonExec runs a python command using the embedded python instance
