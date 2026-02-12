@@ -1,6 +1,6 @@
 # Testing the arm 64 build process
-# FROM --platform=linux/amd64 python:3.14.3-bookworm
-FROM --platform=linux/arm64 python:3.14.3-bookworm
+FROM --platform=linux/amd64 python:3.14.3-bookworm
+# FROM --platform=linux/arm64 python:3.14.3-bookworm
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV ANDROID_SDK_ROOT=/opt/android-sdk

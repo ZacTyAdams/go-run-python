@@ -28,10 +28,10 @@ rm -rf "$PYROOT/lib/python3.15/__pycache__"
 find "$PYROOT" -name '*.pyc' -delete
 
 # remove the ootb pip
-rm "$PYROOT/bin/pip*"
+rm -f "$PYROOT/bin/pip"*
 
 # build the tarball
 cd /local-volume-bridge/cpython/stage
-tar -czf python-3.15-android-arm64-prefix.tar.gz prefix
-echo "Tarball created at: $(pwd)/python-3.15-android-arm64-prefix.tar.gz"
-mv python-3.15-android-arm64-prefix.tar.gz /local-volume-bridge/universal-bucket/android-arm64.tar.gz
+tar -czf python-android-arm64-prefix.tar.gz prefix
+echo "Tarball created at: $(pwd)/python-android-arm64-prefix.tar.gz"
+mv python-android-arm64-prefix.tar.gz /local-volume-bridge/universal-bucket/android-arm64.tar.gz

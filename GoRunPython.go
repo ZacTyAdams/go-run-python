@@ -65,12 +65,6 @@ func CreatePythonInstance() (*pythonInstance, error) {
 		if err != nil {
 			panic(err)
 		}
-		if keepTemp == "" {
-			_ = os.RemoveAll(dname)
-		}
-		if err := os.MkdirAll(dname, 0755); err != nil {
-			panic(err)
-		}
 	} else {
 		tmpDir, err := os.MkdirTemp("./", "python-tmp")
 		if err != nil {
@@ -103,6 +97,9 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	}
 
 	// Ensure the embedded libpython is discoverable at runtime (Linux/Wolfi containers, Android)
+	if osName == "linux" {
+		ensureFixedInterpreterLink(dname)
+	}
 	if osName == "linux" || osName == "android" {
 		ensureEmbeddedPythonLibPath(python_bin_path)
 	}
@@ -170,6 +167,9 @@ func reuseKeptInstance(osName string) (*pythonInstance, error) {
 				return nil
 			}
 			if osName == "linux" || osName == "android" {
+				if osName == "linux" {
+					ensureFixedInterpreterLink(absExtractionPath)
+				}
 				ensureEmbeddedPythonLibPath(pythonBinPath)
 			}
 			if err := ensurePipInstalled(pythonExecPath); err != nil {
@@ -430,6 +430,44 @@ func ensureEmbeddedPythonLibPath(pythonBinPath string) {
 	// Avoid duplicating the path if already present
 	if !containsPath(current, libPath) {
 		_ = os.Setenv("LD_LIBRARY_PATH", libPath+":"+current)
+	}
+}
+
+// ensureFixedInterpreterLink provides the hardcoded loader path expected by Linux builds.
+func ensureFixedInterpreterLink(extractionPath string) {
+	if runtime.GOOS != "linux" {
+		return
+	}
+	fixedRoot := "/tmp/gorunpython"
+	libDir := filepath.Join(extractionPath, "python", "lib")
+	loaderCandidates := []string{
+		"ld-linux-aarch64.so.1",
+		"ld-linux-x86-64.so.2",
+	}
+	for _, loader := range loaderCandidates {
+		target := filepath.Join(libDir, loader)
+		info, err := os.Stat(target)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		linkDir := filepath.Join(fixedRoot, "python", "lib")
+		if err := os.MkdirAll(linkDir, 0755); err != nil {
+			fmt.Printf("Failed to create loader link directory %s: %v\n", linkDir, err)
+			return
+		}
+		linkPath := filepath.Join(linkDir, loader)
+		if existing, err := os.Lstat(linkPath); err == nil {
+			if existing.Mode()&os.ModeSymlink != 0 {
+				if dest, err := os.Readlink(linkPath); err == nil && dest == target {
+					return
+				}
+			}
+			_ = os.Remove(linkPath)
+		}
+		if err := os.Symlink(target, linkPath); err != nil {
+			fmt.Printf("Failed to create loader link %s -> %s: %v\n", linkPath, target, err)
+		}
+		return
 	}
 }
 
