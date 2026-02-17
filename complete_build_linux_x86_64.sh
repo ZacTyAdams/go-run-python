@@ -119,6 +119,12 @@ if [ -f /lib/x86_64-linux-gnu/libdl.so.2 ]; then
   cp /lib/x86_64-linux-gnu/libdl.so.2 python/lib/
 fi
 
+# copy dependencies from LDD of the built file
+cp /usr/local/lib/libpython3.14.so.1.0 python/lib/
+cp /lib/x86_64-linux-gnu/libc.so.6 python/lib/
+cp /lib/x86_64-linux-gnu/libm.so.6 python/lib/
+cp /lib64/ld-linux-x86-64.so.2 python/lib/
+
 resolve_libgcc() {
   local cc="${CC:-gcc}"
   if command -v "$cc" >/dev/null 2>&1; then
@@ -146,6 +152,9 @@ if libgcc_path="$(resolve_libgcc)"; then
 else
   echo "Warning: libgcc_s.so.1 not found; embedded runtime may be less portable."
 fi
+
+# copy in the go python launcher
+cp "$REPO_ROOT/python-launcher/python-launcher-linux-amd64" python/bin/python-launcher
 
 # Create tarball
 echo "Creating tarball..."

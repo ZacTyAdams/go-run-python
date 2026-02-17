@@ -481,6 +481,9 @@ func containsPath(list string, path string) bool {
 }
 
 func resolvePythonExecutable(binPath string, pythonVersion string) (string, error) {
+	if runtime.GOOS == "linux" {
+		return filepath.Join(binPath, "python-launcher"), nil
+	}
 	candidates := []string{
 		filepath.Join(binPath, "python"+pythonVersion),
 		filepath.Join(binPath, "python3"),

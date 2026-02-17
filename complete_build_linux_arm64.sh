@@ -189,6 +189,8 @@ else
   echo "Warning: libgcc_s.so.1 not found; embedded runtime may be less portable."
 fi
 
+# copy in the go python launcher
+cp "$REPO_ROOT/python-launcher/python-launcher-linux-arm64" python/bin/python-launch
 
 # Create tarball
 echo "Creating tarball..."
