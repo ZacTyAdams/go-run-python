@@ -30,7 +30,7 @@ func getInterpreterPath() string {
 	case "amd64":
 		interpreterName = "ld-linux-x86-64.so.2"
 	case "arm64":
-		interpreterName = "ld-android-aarch64.so.1"
+		interpreterName = "ld-linux-aarch64.so.1"
 	default:
 		fmt.Printf("Packaged interpreter not available for architecture: %s\n", archecture)
 		return ""
