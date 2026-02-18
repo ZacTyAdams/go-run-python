@@ -6,69 +6,98 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 )
-
-// the goal for this function will be to seekout and pathmap the correct python executable and it's related dependencies
-// var pythonPath = "python/bin"
-var executableDir string
-var pythonLibPath string
-
-func getPythonLibPath() string {
-	relativePythonLibPath := "../lib"
-	executableDir, err := os.Executable()
-	if err != nil {
-		fmt.Println("Error getting current working directory:", err)
-		return ""
-	}
-	return filepath.Join(filepath.Join(executableDir, ".."), relativePythonLibPath)
-}
-
-func getInterpreterPath() string {
-	archecture := runtime.GOARCH
-	var interpreterName string
-	switch archecture {
-	case "amd64":
-		interpreterName = "ld-linux-x86-64.so.2"
-	case "arm64":
-		interpreterName = "ld-linux-aarch64.so.1"
-	default:
-		fmt.Printf("Packaged interpreter not available for architecture: %s\n", archecture)
-		return ""
-	}
-	fmt.Println("pythonLibPath: ", pythonLibPath)
-	interpreterPath := filepath.Join(pythonLibPath, interpreterName)
-
-	return interpreterPath
-}
 
 func main() {
 	fmt.Println("Hello, World!")
-	// err := os.Chdir(pythonPath)
-	// if err != nil {
-	// 	fmt.Println("Error changing directory:", err)
-	// }
-	executableDir, err := os.Executable()
-	if err != nil {
-		fmt.Println("Error getting current working directory:", err)
-	}
-	pythonLibPath = getPythonLibPath()
-	fmt.Printf("Python library path: %s\n", pythonLibPath)
 
-	os.Setenv("LD_LIBRARY_PATH", pythonLibPath+":"+os.Getenv("LD_LIBRARY_PATH"))
-	interpreterPath := getInterpreterPath()
-	fmt.Printf("Interpreter path: %s\n", interpreterPath)
-	fmt.Printf("Current working directory: %s\n", executableDir)
-	pythonExecutable := filepath.Join(filepath.Join(executableDir, ".."), "python3.14")
-	// This works, now add option for passing args to the python executable
-	args := os.Args[1:]
-	cmd := exec.Command(interpreterPath, append([]string{"--library-path", pythonLibPath, pythonExecutable}, args...)...)
+	exePath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Error getting executable path:", err)
+		os.Exit(1)
+	}
+	exeDir := filepath.Dir(exePath)
+
+	// Layout assumption:
+	// <root>/python/bin/python-launcher   (this binary)
+	// <root>/python/bin/python3.14
+	// <root>/python/lib/ld-linux-*.so.*
+	// <root>/python/lib/libc.so.6, etc
+	pythonBinDir := exeDir
+	pythonRoot := filepath.Clean(filepath.Join(pythonBinDir, ".."))
+	pythonLibDir := filepath.Join(pythonRoot, "lib")
+	pythonExe := filepath.Join(pythonBinDir, "python3.14")
+
+	fmt.Printf("Python root: %s\n", pythonRoot)
+	fmt.Printf("Python bin:  %s\n", pythonBinDir)
+	fmt.Printf("Python lib:  %s\n", pythonLibDir)
+	fmt.Printf("Python exe:  %s\n", pythonExe)
+
+	// Pick the right dynamic loader (interpreter) bundled with your python
+	var loaderName string
+	switch runtime.GOARCH {
+	case "amd64":
+		loaderName = "ld-linux-x86-64.so.2"
+	case "arm64":
+		loaderName = "ld-linux-aarch64.so.1"
+	default:
+		fmt.Printf("Packaged interpreter not available for architecture: %s\n", runtime.GOARCH)
+		os.Exit(1)
+	}
+	loaderPath := filepath.Join(pythonLibDir, loaderName)
+	fmt.Printf("Loader:      %s\n", loaderPath)
+
+	// Pass through args to python
+	pyArgs := os.Args[1:]
+
+	// IMPORTANT: Run the loader directly and control the library search path tightly
+	cmdArgs := append([]string{
+		"--library-path", pythonLibDir,
+		"--inhibit-cache",
+		pythonExe,
+	}, pyArgs...)
+
+	cmd := exec.Command(loaderPath, cmdArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	err = cmd.Run()
-	if err != nil {
-		fmt.Println("Error running command:", err)
-	}
-	fmt.Println("Done!")
 
+	// Avoid mixing host/container glibc/musl bits:
+	env := os.Environ()
+	env = scrubEnv(env, []string{"LD_LIBRARY_PATH", "LD_PRELOAD", "LD_AUDIT"})
+	env = append(env,
+		"LD_LIBRARY_PATH="+pythonLibDir, // keep it tight
+		// These help Python find its stdlib predictably when invoked via loader
+		"PYTHONHOME="+pythonRoot,
+	)
+	cmd.Env = env
+
+	if err := cmd.Run(); err != nil {
+		fmt.Println("Error running command:", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("Done!")
+}
+
+func scrubEnv(env []string, keys []string) []string {
+	kill := map[string]bool{}
+	for _, k := range keys {
+		kill[k+"="] = true
+	}
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		skip := false
+		for prefix := range kill {
+			if strings.HasPrefix(kv, prefix) {
+				skip = true
+				break
+			}
+		}
+		if !skip {
+			out = append(out, kv)
+		}
+	}
+	return out
 }

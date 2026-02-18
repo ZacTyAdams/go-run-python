@@ -190,7 +190,7 @@ else
 fi
 
 # copy in the go python launcher
-cp "$REPO_ROOT/python-launcher/python-launcher-linux-arm64" python/bin/python-launch
+cp "$REPO_ROOT/python-launcher/python-launcher-linux-arm64" python/bin/python-launcher
 
 # Create tarball
 echo "Creating tarball..."
