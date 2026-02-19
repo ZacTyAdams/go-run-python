@@ -98,10 +98,7 @@ func CreatePythonInstance() (*pythonInstance, error) {
 
 	// Ensure the embedded libpython is discoverable at runtime (Linux/Wolfi containers, Android)
 	if osName == "linux" {
-		ensureFixedInterpreterLink(dname)
-	}
-	if osName == "linux" || osName == "android" {
-		ensureEmbeddedPythonLibPath(python_bin_path)
+		patchelfFixup(python_bin_path, filepath.Join(dname, "python", "lib"))
 	}
 	err = makeAllFilesExecutable(python_bin_path, PythonVersion)
 	if err != nil {
@@ -112,6 +109,7 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("Resolved python executable path: ", pythonExecPath)
 	if err := ensurePipInstalled(pythonExecPath); err != nil {
 		return nil, err
 	}
@@ -433,42 +431,23 @@ func ensureEmbeddedPythonLibPath(pythonBinPath string) {
 	}
 }
 
+func patchelfFixup(executablePath string, libDir string) error {
+	// TODO: add in logic to handle different architectures and their corresponding loaders
+	fmt.Println("running patchelf fixes")
+	runCommandStream(filepath.Join(executablePath, "patchelf"), []string{
+		"--set-rpath", libDir,
+		"--set-interpreter", filepath.Join(libDir, "ld-linux-x86-64.so.2"),
+		filepath.Join(executablePath, "python3.14"),
+	})
+	return nil
+}
+
 // ensureFixedInterpreterLink provides the hardcoded loader path expected by Linux builds.
 func ensureFixedInterpreterLink(extractionPath string) {
-	if runtime.GOOS != "linux" {
-		return
-	}
-	fixedRoot := "/tmp/gorunpython"
-	libDir := filepath.Join(extractionPath, "python", "lib")
-	loaderCandidates := []string{
-		"ld-linux-aarch64.so.1",
-		"ld-linux-x86-64.so.2",
-	}
-	for _, loader := range loaderCandidates {
-		target := filepath.Join(libDir, loader)
-		info, err := os.Stat(target)
-		if err != nil || info.IsDir() {
-			continue
-		}
-		linkDir := filepath.Join(fixedRoot, "python", "lib")
-		if err := os.MkdirAll(linkDir, 0755); err != nil {
-			fmt.Printf("Failed to create loader link directory %s: %v\n", linkDir, err)
-			return
-		}
-		linkPath := filepath.Join(linkDir, loader)
-		if existing, err := os.Lstat(linkPath); err == nil {
-			if existing.Mode()&os.ModeSymlink != 0 {
-				if dest, err := os.Readlink(linkPath); err == nil && dest == target {
-					return
-				}
-			}
-			_ = os.Remove(linkPath)
-		}
-		if err := os.Symlink(target, linkPath); err != nil {
-			fmt.Printf("Failed to create loader link %s -> %s: %v\n", linkPath, target, err)
-		}
-		return
-	}
+	// if runtime.GOOS != "linux" {
+	// 	return
+	// }
+
 }
 
 func containsPath(list string, path string) bool {
@@ -481,9 +460,9 @@ func containsPath(list string, path string) bool {
 }
 
 func resolvePythonExecutable(binPath string, pythonVersion string) (string, error) {
-	if runtime.GOOS == "linux" {
-		return filepath.Join(binPath, "python-launcher"), nil
-	}
+	// if runtime.GOOS == "linux" {
+	// 	return filepath.Join(binPath, "python-launcher"), nil
+	// }
 	candidates := []string{
 		filepath.Join(binPath, "python"+pythonVersion),
 		filepath.Join(binPath, "python3"),

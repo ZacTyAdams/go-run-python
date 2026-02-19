@@ -118,10 +118,10 @@ echo "Copying found depenencies"
 cp /lib64/libm.so.6 python/lib/
 cp /lib64/libc.so.6 python/lib/
 cp /lib64/ld-linux-x86-64.so.2 python/lib/
-# cp /usr/lib/x86_64-linux-gnu/liblzma* python/lib/
-# cp /lib/x86_64-linux-gnu/libssl.so.3 python/lib/
-# cp /lib/x86_64-linux-gnu/libcrypto.so.3 python/lib/
-# cp /lib/x86_64-linux-gnu/libz.so.1 python/lib/
+cp /lib64/liblzma* python/lib/
+cp /lib64/libssl.so.3 python/lib/
+cp /lib64/libcrypto.so.3 python/lib/
+cp /lib64/libz.so.1 python/lib/
 cp "$REPO_ROOT/python-launcher/python-launcher-linux-amd64" python/bin/python-launcher
 chmod +x python/bin/python-launcher
 cp "$REPO_ROOT/patchelf" python/bin/patchelf
