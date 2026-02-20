@@ -442,6 +442,7 @@ func patchelfFixup(executablePath string, libDir string) error {
 	return nil
 }
 
+// TODO: Remove this
 // ensureFixedInterpreterLink provides the hardcoded loader path expected by Linux builds.
 func ensureFixedInterpreterLink(extractionPath string) {
 	// if runtime.GOOS != "linux" {
