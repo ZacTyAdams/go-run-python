@@ -99,6 +99,8 @@ func CreatePythonInstance() (*pythonInstance, error) {
 	// Ensure the embedded libpython is discoverable at runtime (Linux/Wolfi containers, Android)
 	if osName == "linux" {
 		patchelfFixup(python_bin_path, filepath.Join(dname, "python", "lib"))
+		patchelfFixup(filepath.Join(dname, "python", "lib"), filepath.Join(dname, "python", "lib"))
+		patchelfFixup(filepath.Join(dname, "python", "lib", "python3.14", "lib-dynload"), filepath.Join(dname, "python", "lib"))
 	}
 	err = makeAllFilesExecutable(python_bin_path, PythonVersion)
 	if err != nil {

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"maps"
 	"os"
@@ -14,6 +15,33 @@ func main() {
 	// if you want silence just remove this line and environment variable
 	os.Setenv("GORUNPYTHON_NOISY", "true")
 	os.Setenv("GORUNPYTHON_KEEP_TEMP", "true")
+
+	var (
+		seal   = flag.String("seal", "", "path of files to seal in the binary")
+		unseal = flag.Bool("unseal", false, "if set, will print the path of the sealed files and exit")
+	)
+	flag.Parse()
+
+	if *seal != "" {
+		sealedPath, err := gorunpython.SealDirectoryIntoRunningExecutable(*seal)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Printf("Sealed %s into %s\n", *seal, sealedPath)
+		return
+	}
+	if *unseal {
+		extracted, err := gorunpython.UnsealDirectoryNextToExecutableIfPresent()
+		if err != nil {
+			panic(err)
+		}
+		if extracted {
+			fmt.Println("Extracted sealed directory next to executable")
+		} else {
+			fmt.Println("No sealed directory found in executable")
+		}
+		return
+	}
 
 	pythonInstance, err := gorunpython.CreatePythonInstance()
 	if err != nil {
